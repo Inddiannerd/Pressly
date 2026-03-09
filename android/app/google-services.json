@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "408958424784",
+    "project_id": "smart-laundry-b8326",
+    "storage_bucket": "smart-laundry-b8326.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:408958424784:android:13588435a5b7601db430d5",
+        "android_client_info": {
+          "package_name": "com.example.smart_laundary"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBy-rkEudqa6vsjWw4KEFKG2L9ShyaRWGo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
