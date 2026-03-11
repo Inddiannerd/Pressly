@@ -1,6 +1,6 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
-import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/data/latest.dart' as tz;
 import 'dart:io';
 
 class LocalNotificationService {
@@ -9,9 +9,19 @@ class LocalNotificationService {
   LocalNotificationService._internal();
 
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
+  bool _isInitialized = false;
 
   Future<void> init() async {
+    if (_isInitialized) return;
+
     tz.initializeTimeZones();
+    // Set local location to UTC as a default to prevent LateInitializationError.
+    // Ideally, use flutter_timezone to set the actual device timezone.
+    try {
+      tz.setLocalLocation(tz.getLocation('UTC'));
+    } catch (e) {
+      // Fallback in case UTC is not found in the database
+    }
     
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/launcher_icon');
@@ -52,10 +62,13 @@ class LocalNotificationService {
           ?.requestNotificationsPermission();
     }
 
+    _isInitialized = true;
     await scheduleDefaultNotifications();
   }
 
   Future<void> scheduleDefaultNotifications() async {
+    if (!_isInitialized) await init();
+
     // 1. Weekend Reminder: Every Saturday at 9:00 AM
     await _scheduleWeekly(
       id: 101,
@@ -78,6 +91,8 @@ class LocalNotificationService {
   }
 
   Future<void> updatePendingOrderReminder(bool hasPendingOrders) async {
+    if (!_isInitialized) await init();
+
     const int pendingId = 103;
     if (hasPendingOrders) {
       // 3. Pending Order Reminder: Every day at 8:00 PM (20:00)
@@ -159,6 +174,10 @@ class LocalNotificationService {
   }
 
   tz.TZDateTime _nextInstanceOfTime(int hour, int minute) {
+    // If tz.local is not initialized, this will throw.
+    // However, initializeTimeZones() usually initializes it to UTC or we might need setLocalLocation.
+    // In many cases, we want to use the actual device timezone.
+    
     final tz.TZDateTime now = tz.TZDateTime.now(tz.local);
     tz.TZDateTime scheduledDate =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);

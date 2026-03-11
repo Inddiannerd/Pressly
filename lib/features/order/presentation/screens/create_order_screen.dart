@@ -5,6 +5,8 @@ import 'package:uuid/uuid.dart';
 import 'package:smart_laundary/core/providers/firebase_providers.dart';
 import 'package:smart_laundary/features/profile/presentation/providers/address_providers.dart';
 import 'package:smart_laundary/features/profile/domain/entities/address.dart';
+import 'package:smart_laundary/features/laundry/presentation/providers/laundry_item_providers.dart';
+import 'package:smart_laundary/features/laundry/domain/entities/laundry_item.dart';
 import '../../domain/entities/order.dart';
 import '../providers/order_providers.dart';
 import '../../../../core/widgets/app_drawer.dart';
@@ -18,13 +20,39 @@ class CreateOrderScreen extends ConsumerStatefulWidget {
 
 class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
   AddressEntity? selectedAddress;
-  final double totalAmount = 199.0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Clear items when entering the screen
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(orderItemsProvider.notifier).clear();
+    });
+  }
+
+  double _calculateTotal(Map<String, int> orderItems, List<LaundryItemEntity> laundryItems) {
+    double total = 0;
+    orderItems.forEach((name, quantity) {
+      final item = laundryItems.firstWhere((element) => element.name == name, orElse: () => const LaundryItemEntity(id: '', name: '', price: 0));
+      if (item.name.isNotEmpty) {
+        total += item.price * quantity;
+      }
+    });
+    return total;
+  }
 
   @override
   Widget build(BuildContext context) {
     final addressesAsync = ref.watch(userAddressesProvider);
     final createOrderState = ref.watch(createOrderProvider);
+    final laundryItemsAsync = ref.watch(laundryItemsProvider);
+    final orderItems = ref.watch(orderItemsProvider);
     final theme = Theme.of(context);
+
+    double totalAmount = 0;
+    laundryItemsAsync.whenData((items) {
+      totalAmount = _calculateTotal(orderItems, items);
+    });
 
     ref.listen(createOrderProvider, (previous, next) {
       if (next is AsyncData && next.value != null) {
@@ -149,6 +177,7 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
                     error: (e, _) => Center(child: Text("Error: $e")),
                   ),
                   const SizedBox(height: 24),
+                  const _LaundryItemSelector(),
                   _OrderSummary(totalAmount: totalAmount),
                 ],
               ),
@@ -156,7 +185,7 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
           ),
           _BottomAction(
             isLoading: createOrderState.isLoading,
-            isEnabled: selectedAddress != null,
+            isEnabled: selectedAddress != null && totalAmount > 0,
             onPressed: () {
               final user = ref.read(firebaseAuthProvider).currentUser;
               if (user == null) return;
@@ -164,10 +193,12 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
               final order = OrderEntity(
                 id: const Uuid().v4(),
                 userId: user.uid,
+                userEmail: user.email ?? 'N/A',
                 addressId: selectedAddress!.id,
                 status: OrderStatus.pending,
                 createdAt: DateTime.now(),
                 totalAmount: totalAmount,
+                items: orderItems,
                 addressLabel: selectedAddress!.label,
                 addressDetails: selectedAddress!.addressLine1,
               );
@@ -176,6 +207,101 @@ class _CreateOrderScreenState extends ConsumerState<CreateOrderScreen> {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LaundryItemSelector extends ConsumerWidget {
+  const _LaundryItemSelector();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final laundryItemsAsync = ref.watch(laundryItemsProvider);
+    final orderItems = ref.watch(orderItemsProvider);
+    final theme = Theme.of(context);
+
+    return laundryItemsAsync.when(
+      data: (items) {
+        if (items.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Select Items",
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                letterSpacing: -0.2,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ...items.map((item) {
+              final quantity = orderItems[item.name] ?? 0;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: theme.colorScheme.outlineVariant),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.name,
+                            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            "₹${item.price.toStringAsFixed(0)} / item",
+                            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        IconButton(
+                          onPressed: () {
+                            ref.read(orderItemsProvider.notifier).updateQuantity(item.name, quantity - 1);
+                          },
+                          icon: const Icon(Icons.remove_circle_outline),
+                          color: theme.colorScheme.primary,
+                        ),
+                        SizedBox(
+                          width: 30,
+                          child: Text(
+                            quantity.toString(),
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () {
+                            ref.read(orderItemsProvider.notifier).updateQuantity(item.name, quantity + 1);
+                          },
+                          icon: const Icon(Icons.add_circle_outline),
+                          color: theme.colorScheme.primary,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 24),
+          ],
+        );
+      },
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Text("Error loading items: $e", style: TextStyle(color: theme.colorScheme.error)),
       ),
     );
   }
@@ -204,7 +330,7 @@ class _OrderSummary extends StatelessWidget {
             style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
-          _SummaryRow(label: "Standard Laundry", value: "₹$totalAmount"),
+          _SummaryRow(label: "Items Total", value: "₹${totalAmount.toStringAsFixed(2)}"),
           _SummaryRow(label: "Service Fee", value: "FREE", isFree: true),
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 12),
@@ -212,7 +338,7 @@ class _OrderSummary extends StatelessWidget {
           ),
           _SummaryRow(
             label: "Total Pay",
-            value: "₹$totalAmount",
+            value: "₹${totalAmount.toStringAsFixed(2)}",
             isTotal: true,
           ),
         ],

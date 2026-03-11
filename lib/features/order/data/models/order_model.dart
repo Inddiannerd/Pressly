@@ -4,20 +4,24 @@ import 'package:smart_laundary/features/order/domain/entities/order.dart';
 class OrderModel {
   final String id;
   final String userId;
+  final String userEmail;
   final String addressId;
   final OrderStatus status;
   final DateTime createdAt;
   final double totalAmount;
+  final Map<String, int> items;
   final String? addressLabel;
   final String? addressDetails;
 
   const OrderModel({
     required this.id,
     required this.userId,
+    required this.userEmail,
     required this.addressId,
     required this.status,
     required this.createdAt,
     required this.totalAmount,
+    this.items = const {},
     this.addressLabel,
     this.addressDetails,
   });
@@ -28,6 +32,7 @@ class OrderModel {
     return OrderModel(
       id: doc.id,
       userId: data['userId'] as String,
+      userEmail: data['userEmail'] as String? ?? 'N/A',
       addressId: data['addressId'] as String,
       status: OrderStatus.values.firstWhere(
         (e) {
@@ -39,6 +44,7 @@ class OrderModel {
       ),
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       totalAmount: (data['totalAmount'] as num).toDouble(),
+      items: Map<String, int>.from(data['items'] ?? {}),
       addressLabel: data['addressLabel'] as String?,
       addressDetails: data['addressDetails'] as String?,
     );
@@ -47,10 +53,12 @@ class OrderModel {
   Map<String, dynamic> toFirestore() {
     return {
       'userId': userId,
+      'userEmail': userEmail,
       'addressId': addressId,
       'status': status.name,
       'createdAt': Timestamp.fromDate(createdAt),
       'totalAmount': totalAmount,
+      'items': items,
       'addressLabel': addressLabel,
       'addressDetails': addressDetails,
     };
@@ -60,10 +68,12 @@ class OrderModel {
     return OrderModel(
       id: entity.id,
       userId: entity.userId,
+      userEmail: entity.userEmail,
       addressId: entity.addressId,
       status: entity.status,
       createdAt: entity.createdAt,
       totalAmount: entity.totalAmount,
+      items: entity.items,
       addressLabel: entity.addressLabel,
       addressDetails: entity.addressDetails,
     );
@@ -73,10 +83,12 @@ class OrderModel {
     return OrderEntity(
       id: id,
       userId: userId,
+      userEmail: userEmail,
       addressId: addressId,
       status: status,
       createdAt: createdAt,
       totalAmount: totalAmount,
+      items: items,
       addressLabel: addressLabel,
       addressDetails: addressDetails,
     );

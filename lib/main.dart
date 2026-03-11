@@ -15,8 +15,7 @@ Future<void> main() async {
   );
 
   // register background handler and init notification service
-  // FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  // await NotificationService().init();
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   // await LocalNotificationService().init();
 
   runApp(

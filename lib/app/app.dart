@@ -12,7 +12,7 @@ class PresslyApp extends ConsumerWidget {
     final router = ref.watch(appRouterProvider);
     
     // Initialize notification scheduler
-    ref.watch(notificationSchedulerProvider);
+    // ref.watch(notificationSchedulerProvider);
 
     return MaterialApp.router(
       title: 'Pressly',

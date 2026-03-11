@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:smart_laundary/features/auth/presentation/providers/auth_providers.dart';
 import '../../domain/entities/order.dart';
 import '../providers/order_providers.dart';
 import '../../../../core/widgets/app_drawer.dart';
@@ -42,43 +43,10 @@ class OrderHistoryScreen extends ConsumerWidget {
     }
   }
 
-  OrderStatus? _getNextStatus(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.pending:
-        return OrderStatus.picked_up;
-      case OrderStatus.picked_up:
-        return OrderStatus.washing;
-      case OrderStatus.washing:
-        return OrderStatus.ironing;
-      case OrderStatus.ironing:
-        return OrderStatus.out_for_delivery;
-      case OrderStatus.out_for_delivery:
-        return OrderStatus.completed;
-      default:
-        return null;
-    }
-  }
-
-  String _getNextStatusLabel(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.pending:
-        return "Pick Up";
-      case OrderStatus.picked_up:
-        return "Wash";
-      case OrderStatus.washing:
-        return "Iron";
-      case OrderStatus.ironing:
-        return "Ship";
-      case OrderStatus.out_for_delivery:
-        return "Deliver";
-      default:
-        return "";
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ordersAsync = ref.watch(userOrdersProvider);
+    final roleAsync = ref.watch(userRoleProvider);
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -123,7 +91,7 @@ class OrderHistoryScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        "You haven't placed any laundry orders yet.\nYour order history will appear here.",
+                        "No orders found.\nOrder history will appear here.",
                         textAlign: TextAlign.center,
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
@@ -136,6 +104,8 @@ class OrderHistoryScreen extends ConsumerWidget {
               );
             }
 
+            final isAdmin = roleAsync.value == 'admin';
+
             return ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               itemCount: orders.length,
@@ -143,10 +113,9 @@ class OrderHistoryScreen extends ConsumerWidget {
                 final order = orders[index];
                 return _OrderCard(
                   order: order,
+                  isAdmin: isAdmin,
                   formatData: _formatDate,
                   getStatusColor: _getStatusColor,
-                  getNextStatus: _getNextStatus,
-                  getNextStatusLabel: _getNextStatusLabel,
                 );
               },
             );
@@ -174,24 +143,20 @@ class OrderHistoryScreen extends ConsumerWidget {
 
 class _OrderCard extends ConsumerWidget {
   final OrderEntity order;
+  final bool isAdmin;
   final String Function(DateTime) formatData;
   final Color Function(OrderStatus) getStatusColor;
-  final OrderStatus? Function(OrderStatus) getNextStatus;
-  final String Function(OrderStatus) getNextStatusLabel;
 
   const _OrderCard({
     required this.order,
+    required this.isAdmin,
     required this.formatData,
     required this.getStatusColor,
-    required this.getNextStatus,
-    required this.getNextStatusLabel,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final nextStatus = getNextStatus(order.status);
-    final canCancel = order.status == OrderStatus.pending;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -200,6 +165,24 @@ class _OrderCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (isAdmin) ...[
+              Text(
+                "ID: ${order.id}",
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontFamily: 'monospace',
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                "Customer: ${order.userEmail}",
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -237,16 +220,55 @@ class _OrderCard extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                _StatusBadge(
-                  status: order.status,
-                  color: getStatusColor(order.status),
-                ),
+                if (!isAdmin)
+                  _StatusBadge(
+                    status: order.status,
+                    color: getStatusColor(order.status),
+                  )
+                else
+                  _StatusDropdown(
+                    order: order,
+                    getStatusColor: getStatusColor,
+                  ),
               ],
             ),
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
               child: Divider(height: 1),
             ),
+            if (order.items.isNotEmpty) ...[
+              Text(
+                "ITEMS",
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  letterSpacing: 0.5,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...order.items.entries.map((entry) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      entry.key,
+                      style: theme.textTheme.bodySmall,
+                    ),
+                    Text(
+                      "x${entry.value}",
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Divider(height: 1),
+              ),
+            ],
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -293,70 +315,53 @@ class _OrderCard extends ConsumerWidget {
                 ),
               ],
             ),
-            if (nextStatus != null || canCancel) ...[
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  if (canCancel)
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () async {
-                          await ref.read(updateOrderProvider.notifier).updateStatus(
-                                order.id,
-                                OrderStatus.cancelled,
-                              );
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text("Order cancelled successfully")),
-                            );
-                          }
-                        },
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.red,
-                          side: const BorderSide(color: Colors.red, width: 1.5),
-                          minimumSize: const Size(0, 44),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        child: const Text("Cancel Order"),
-                      ),
-                    ),
-                  if (canCancel && nextStatus != null) const SizedBox(width: 12),
-                  if (nextStatus != null)
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          await ref.read(updateOrderProvider.notifier).updateStatus(
-                                order.id,
-                                nextStatus,
-                              );
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text("Order updated to ${nextStatus.name}")),
-                            );
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: getStatusColor(nextStatus),
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size(0, 44),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        child: Text(
-                          getNextStatusLabel(order.status),
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusDropdown extends ConsumerWidget {
+  final OrderEntity order;
+  final Color Function(OrderStatus) getStatusColor;
+
+  const _StatusDropdown({
+    required this.order,
+    required this.getStatusColor,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: getStatusColor(order.status).withOpacity(0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: getStatusColor(order.status).withOpacity(0.2)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<OrderStatus>(
+          value: order.status,
+          icon: Icon(Icons.arrow_drop_down, color: getStatusColor(order.status), size: 18),
+          elevation: 1,
+          style: TextStyle(
+            color: getStatusColor(order.status),
+            fontSize: 10,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.5,
+          ),
+          onChanged: (OrderStatus? newValue) {
+            if (newValue != null && newValue != order.status) {
+              ref.read(updateOrderProvider.notifier).updateStatus(order.id, newValue);
+            }
+          },
+          items: OrderStatus.values.map<DropdownMenuItem<OrderStatus>>((OrderStatus value) {
+            return DropdownMenuItem<OrderStatus>(
+              value: value,
+              child: Text(value.name.replaceAll('_', ' ').toUpperCase()),
+            );
+          }).toList(),
         ),
       ),
     );

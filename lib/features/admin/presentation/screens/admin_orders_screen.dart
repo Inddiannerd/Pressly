@@ -46,7 +46,6 @@ class _OrderCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final userEmailAsync = ref.watch(userEmailProvider(order.userId));
     final dateFormat = DateFormat('dd MMM yyyy, hh:mm a');
 
     return Card(
@@ -64,13 +63,9 @@ class _OrderCard extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
-                  child: userEmailAsync.when(
-                    data: (email) => Text(
-                      email,
-                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    loading: () => const LinearProgressIndicator(),
-                    error: (_, __) => const Text("Unknown Customer"),
+                  child: Text(
+                    order.userEmail,
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
                 Text(
@@ -91,6 +86,24 @@ class _OrderCard extends ConsumerWidget {
               "Created: ${dateFormat.format(order.createdAt)}",
               style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
+            if (order.items.isNotEmpty) ...[
+              const Divider(height: 24),
+              Text(
+                "Items:",
+                style: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              ...order.items.entries.map((e) => Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(e.key, style: theme.textTheme.bodySmall),
+                        Text("x${e.value}", style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  )),
+            ],
             const Divider(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

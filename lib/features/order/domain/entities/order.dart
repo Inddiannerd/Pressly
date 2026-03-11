@@ -27,10 +27,12 @@ class OrderEntity with _$OrderEntity {
   const factory OrderEntity({
     required String id,
     required String userId,
+    required String userEmail,
     required String addressId,
     required OrderStatus status,
     required DateTime createdAt,
     required double totalAmount,
+    @Default({}) Map<String, int> items,
     String? addressLabel,
     String? addressDetails,
   }) = _OrderEntity;

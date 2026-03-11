@@ -41,6 +41,24 @@ class OrderRepositoryImpl implements OrderRepository {
   }
 
   @override
+  Stream<Either<Failure, List<OrderEntity>>> getAllOrders() {
+    return _firestore
+        .collection('orders')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      try {
+        final orders = snapshot.docs
+            .map((doc) => OrderModel.fromFirestore(doc).toEntity())
+            .toList();
+        return right(orders);
+      } catch (e) {
+        return left(ServerFailure(e.toString()));
+      }
+    });
+  }
+
+  @override
   Future<Either<Failure, void>> updateOrderStatus(String orderId, OrderStatus status) async {
     try {
       await _firestore
